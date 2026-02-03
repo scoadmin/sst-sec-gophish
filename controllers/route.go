@@ -152,6 +152,16 @@ func (as *AdminServer) registerRoutes() {
 	if len(csrfKey) == 0 {
 		csrfKey = []byte(auth.GenerateSecureKey(auth.APIKeyLength))
 	}
+
+	// PATCH CSRF to respect X-Forwarded headers
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+   		r.URL.Scheme = proto
+	}
+	if host := r.Header.Get("X-Forwarded-Host"); host != "" {
+		r.Host = host
+	}
+	// END PATCH CSRF
+
 	csrfHandler := csrf.Protect(csrfKey,
 		csrf.FieldName("csrf_token"),
 		csrf.Secure(as.config.UseTLS),
