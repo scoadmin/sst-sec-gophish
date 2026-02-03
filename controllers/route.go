@@ -153,23 +153,15 @@ func (as *AdminServer) registerRoutes() {
 		csrfKey = []byte(auth.GenerateSecureKey(auth.APIKeyLength))
 	}
 
-	// PATCH CSRF to respect X-Forwarded headers
-	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
-   		r.URL.Scheme = proto
-	}
-	if host := r.Header.Get("X-Forwarded-Host"); host != "" {
-		r.Host = host
-	}
-	// END PATCH CSRF
-
-	csrfHandler := csrf.Protect(csrfKey,
+	csrfHandler := proxyFix(router) // PATCH: Fix for X-Forwarded headers
+	csrfHandler = csrf.Protect(csrfKey,
 		csrf.FieldName("csrf_token"),
 		csrf.Secure(as.config.UseTLS),
 		csrf.TrustedOrigins(as.config.TrustedOrigins))
 	adminHandler := csrfHandler(router)
 	adminHandler = mid.Use(adminHandler.ServeHTTP, mid.CSRFExceptions, mid.GetContext, mid.ApplySecurityHeaders)
 
-	// Setup GZIP compression
+	// Setup GZIP compression)
 	gzipWrapper, _ := gziphandler.NewGzipLevelHandler(gzip.BestCompression)
 	adminHandler = gzipWrapper(adminHandler)
 
@@ -502,4 +494,17 @@ func Flash(w http.ResponseWriter, r *http.Request, t string, m string) {
 		Type:    t,
 		Message: m,
 	})
+}
+
+// PATCH CSRF Handler to respect X-Forwarded headers for scheme and host
+func proxyFix(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+            r.URL.Scheme = proto
+        }
+        if host := r.Header.Get("X-Forwarded-Host"); host != "" {
+            r.Host = host
+        }
+        next.ServeHTTP(w, r)
+    })
 }
