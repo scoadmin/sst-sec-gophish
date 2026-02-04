@@ -153,12 +153,13 @@ func (as *AdminServer) registerRoutes() {
 		csrfKey = []byte(auth.GenerateSecureKey(auth.APIKeyLength))
 	}
 
-	csrfHandler := proxyFix(router) // PATCH: Fix for X-Forwarded headers
-	csrfHandler = csrf.Protect(csrfKey,
+	csrfHandler := csrf.Protect(csrfKey,
 		csrf.FieldName("csrf_token"),
 		csrf.Secure(as.config.UseTLS),
-		csrf.TrustedOrigins(as.config.TrustedOrigins))(cssrfHandler)
-	adminHandler := csrfHandler(router)
+		csrf.TrustedOrigins(as.config.TrustedOrigins))
+	
+	//adminHandler := csrfHandler(router)
+	adminHandler := csrfHandler(proxyFix(router)) // PATCH: Fix for X-Forwarded headers
 	adminHandler = mid.Use(adminHandler.ServeHTTP, mid.CSRFExceptions, mid.GetContext, mid.ApplySecurityHeaders)
 
 	// Setup GZIP compression)
